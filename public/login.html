@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Project Tracker</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <i class="fas fa-project-diagram auth-logo"></i>
+        <h2>Welcome Back</h2>
+        <p>Sign in to your project tracker</p>
+      </div>
+      <form id="loginForm">
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" id="email" placeholder="Email address" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="auth-btn">
+          <span>Log In</span>
+          <i class="fas fa-arrow-right"></i>
+        </button>
+      </form>
+      <p id="message"></p>
+      <p class="auth-switch">Don't have an account? <a href="/signup.html">Sign up</a></p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const btn = document.querySelector('.auth-btn');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+      btn.disabled = true;
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      const msgEl = document.getElementById('message');
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        msgEl.textContent = 'Login successful! Redirecting...';
+        msgEl.className = 'success-message';
+        setTimeout(() => { window.location.href = '/dashboard.html'; }, 1000);
+      } else {
+        msgEl.textContent = data.error || 'Login failed';
+        msgEl.className = 'error-message';
+        btn.innerHTML = '<span>Log In</span><i class="fas fa-arrow-right"></i>';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

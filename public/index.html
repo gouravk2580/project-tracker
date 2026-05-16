@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Tracker</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>🚀 Project Tracker is running!</h1>
+  <p>If you see this page, the server works.</p>
+  <button id="testApi">Test API</button>
+  <p id="apiResult"></p>
+  <script>
+    document.getElementById('testApi').addEventListener('click', async () => {
+      const res = await fetch('/api/test');
+      const data = await res.json();
+      document.getElementById('apiResult').textContent = data.message;
+    });
+  </script>
+</body>
+</html>

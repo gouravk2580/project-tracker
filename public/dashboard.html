@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ProTrack</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <i class="fas fa-project-diagram"></i>
+        <span>ProTrack</span>
+      </div>
+      <nav>
+        <a href="#" class="nav-item active" data-section="projects">
+          <i class="fas fa-folder"></i> Projects
+        </a>
+        <a href="#" class="nav-item" data-section="mytasks">
+          <i class="fas fa-tasks"></i> My Tasks
+        </a>
+        <a href="#" class="nav-item" data-section="stats">
+          <i class="fas fa-chart-bar"></i> Stats
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="logoutBtn" class="logout-btn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-bar">
+        <h2 id="sectionTitle">Projects</h2>
+        <div class="user-info-top">
+          <i class="fas fa-user-circle"></i>
+          <span id="headerUserName">User</span>
+        </div>
+      </header>
+
+      <div class="content-area">
+        <!-- Projects Section -->
+        <section id="projectsSection" class="section active">
+          <div class="section-header">
+            <h3>Your Projects</h3>
+            <button class="btn-primary" id="openCreateProjectBtn"><i class="fas fa-plus"></i> New Project</button>
+          </div>
+          <div id="projectsList" class="list-grid"></div>
+        </section>
+
+        <!-- My Tasks Section -->
+        <section id="mytasksSection" class="section">
+          <div class="section-header">
+            <h3>Tasks Assigned to Me</h3>
+          </div>
+          <div id="myTasksList" class="list-grid"></div>
+        </section>
+
+        <!-- Stats Section -->
+        <section id="statsSection" class="section">
+          <div class="stats-grid-dynamic" id="statsCards"></div>
+        </section>
+
+        <!-- Project Detail & Task Section (hidden until project clicked) -->
+        <section id="projectDetailSection" class="section" style="display:none;">
+          <button class="btn-secondary" id="backToProjectsBtn"><i class="fas fa-arrow-left"></i> Back to Projects</button>
+          <div id="projectDetailContent"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal-overlay" id="createProjectModal">
+    <div class="modal">
+      <h3>Create Project</h3>
+      <form id="createProjectForm">
+        <input type="text" id="projName" placeholder="Project name" required>
+        <input type="text" id="projDesc" placeholder="Description (optional)">
+        <button type="submit" class="btn-primary">Create</button>
+        <button type="button" class="btn-secondary close-modal">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="createTaskModal">
+    <div class="modal">
+      <h3>Add Task</h3>
+      <form id="createTaskForm">
+        <input type="text" id="taskTitle" placeholder="Task title" required>
+        <input type="text" id="taskDesc" placeholder="Description (optional)">
+        <input type="date" id="taskDueDate">
+        <select id="taskAssignee">
+          <option value="">Assign to (optional)</option>
+        </select>
+        <input type="hidden" id="currentProjectId">
+        <button type="submit" class="btn-primary">Add Task</button>
+        <button type="button" class="btn-secondary close-modal">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ──────────────────────────────────────
+    // Auth check
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    let currentUser = null;
+    let currentProjectId = null;
+
+    // Fetch user info
+    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.user) {
+          currentUser = data.user;
+          document.getElementById('headerUserName').textContent = currentUser.name;
+          initDashboard();
+        } else {
+          localStorage.clear();
+          window.location.href = '/login.html';
+        }
+      })
+      .catch(() => { window.location.href = '/login.html'; });
+
+    // ──────────────────────────────────────
+    // Navigation
+    function showSection(sectionId) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      const section = document.getElementById(sectionId + 'Section');
+      if (section) section.classList.add('active');
+      if (sectionId === 'projectDetail' && currentProjectId) {
+        loadProjectDetail(currentProjectId);
+      } else {
+        document.getElementById('projectDetailSection').style.display = 'none';
+      }
+    }
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        this.classList.add('active');
+        const section = this.dataset.section;
+        document.getElementById('sectionTitle').textContent = this.textContent.trim();
+        if (section === 'projects') {
+          document.getElementById('projectDetailSection').style.display = 'none';
+          showSection('projects');
+          loadProjects();
+        } else if (section === 'mytasks') {
+          document.getElementById('projectDetailSection').style.display = 'none';
+          showSection('mytasks');
+          loadMyTasks();
+        } else if (section === 'stats') {
+          document.getElementById('projectDetailSection').style.display = 'none';
+          showSection('stats');
+          loadStats();
+        }
+      });
+    });
+
+    // ──────────────────────────────────────
+    // Load Projects
+    function loadProjects() {
+      fetch('/api/projects', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+          const list = document.getElementById('projectsList');
+          if (!data.projects || data.projects.length === 0) {
+            list.innerHTML = '<p class="empty-msg">No projects yet. Create one!</p>';
+            return;
+          }
+          list.innerHTML = data.projects.map(p => `
+            <div class="card project-card" data-id="${p.id}">
+              <h4>${escapeHtml(p.name)}</h4>
+              <p>${escapeHtml(p.description || 'No description')}</p>
+              <span class="badge">${p.member_role}</span>
+              <div class="card-actions">
+                <button class="btn-small view-project" data-id="${p.id}"><i class="fas fa-eye"></i> View</button>
+              </div>
+            </div>
+          `).join('');
+          // Attach click handlers
+          document.querySelectorAll('.view-project').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              const pid = e.target.closest('button').dataset.id;
+              openProjectDetail(pid);
+            });
+          });
+          // Also allow clicking on card
+          document.querySelectorAll('.project-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+              if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I') return;
+              const pid = this.dataset.id;
+              openProjectDetail(pid);
+            });
+          });
+        });
+    }
+
+    // ──────────────────────────────────────
+    // Open Project Detail
+    function openProjectDetail(projectId) {
+      currentProjectId = projectId;
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      document.getElementById('sectionTitle').textContent = 'Project Details';
+      document.getElementById('projectsSection').classList.remove('active');
+      document.getElementById('mytasksSection').classList.remove('active');
+      document.getElementById('statsSection').classList.remove('active');
+      document.getElementById('projectDetailSection').style.display = 'block';
+      loadProjectDetail(projectId);
+    }
+
+    function loadProjectDetail(projectId) {
+      fetch(`/api/projects/${projectId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+          const html = `
+            <div class="welcome-card">
+              <h2>${escapeHtml(data.project.name)}</h2>
+              <p>${escapeHtml(data.project.description || 'No description')}</p>
+              <p>Your role: <strong>${data.project.member_role}</strong></p>
+            </div>
+            <div class="team-section">
+              <h4><i class="fas fa-users"></i> Team</h4>
+              <ul class="member-list">
+                ${data.members.map(m => `<li>${escapeHtml(m.name)} (${m.email}) - <span class="badge">${m.role}</span></li>`).join('')}
+              </ul>
+              ${data.project.member_role === 'admin' ? `
+                <div class="add-member-form">
+                  <input type="email" id="newMemberEmail" placeholder="User email">
+                  <select id="newMemberRole">
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button class="btn-small" id="addMemberBtn"><i class="fas fa-user-plus"></i> Add</button>
+                </div>
+              ` : ''}
+            </div>
+            <div class="tasks-section">
+              <div class="section-header">
+                <h4><i class="fas fa-tasks"></i> Tasks</h4>
+                <button class="btn-primary" id="openTaskModalBtn"><i class="fas fa-plus"></i> Add Task</button>
+              </div>
+              <div id="projectTasksList"></div>
+            </div>
+          `;
+          document.getElementById('projectDetailContent').innerHTML = html;
+          loadProjectTasks(projectId);
+          // Attach event listeners
+          document.getElementById('backToProjectsBtn').onclick = () => {
+            document.getElementById('projectDetailSection').style.display = 'none';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelector('[data-section="projects"]').classList.add('active');
+            document.getElementById('sectionTitle').textContent = 'Projects';
+            showSection('projects');
+            loadProjects();
+          };
+          if (data.project.member_role === 'admin') {
+            document.getElementById('addMemberBtn').addEventListener('click', addMember);
+          }
+          document.getElementById('openTaskModalBtn').addEventListener('click', () => {
+            document.getElementById('currentProjectId').value = projectId;
+            openModal('createTaskModal');
+            loadMembersForAssign(projectId);
+          });
+        });
+    }
+
+    // Load tasks for a project
+    function loadProjectTasks(projectId) {
+      fetch(`/api/tasks/project/${projectId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+          const list = document.getElementById('projectTasksList');
+          if (!data.tasks || data.tasks.length === 0) {
+            list.innerHTML = '<p class="empty-msg">No tasks yet.</p>';
+            return;
+          }
+          list.innerHTML = data.tasks.map(t => `
+            <div class="task-item ${t.status === 'done' ? 'done' : ''} ${isOverdue(t) ? 'overdue' : ''}">
+              <div>
+                <strong>${escapeHtml(t.title)}</strong>
+                <span class="badge badge-status">${t.status}</span>
+                ${t.assignee_name ? `<small>Assigned to: ${escapeHtml(t.assignee_name)}</small>` : ''}
+                ${t.due_date ? `<small>Due: ${t.due_date}</small>` : ''}
+              </div>
+              <select class="status-select" data-taskid="${t.id}">
+                <option value="todo" ${t.status==='todo'?'selected':''}>To Do</option>
+                <option value="in-progress" ${t.status==='in-progress'?'selected':''}>In Progress</option>
+                <option value="done" ${t.status==='done'?'selected':''}>Done</option>
+              </select>
+            </div>
+          `).join('');
+          // Attach status change
+          document.querySelectorAll('.status-select').forEach(sel => {
+            sel.addEventListener('change', function() {
+              const taskId = this.dataset.taskid;
+              updateTaskStatus(taskId, this.value);
+            });
+          });
+        });
+    }
+
+    function isOverdue(task) {
+      if (task.status === 'done' || !task.due_date) return false;
+      return new Date(task.due_date) < new Date();
+    }
+
+    function updateTaskStatus(taskId, newStatus) {
+      fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ status: newStatus })
+      }).then(r => r.json()).then(d => {
+        loadProjectTasks(currentProjectId);
+        loadStats(); // update stats
+      });
+    }
+
+    // ──────────────────────────────────────
+    // Load My Tasks
+    function loadMyTasks() {
+      fetch('/api/tasks/my', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+          const list = document.getElementById('myTasksList');
+          if (!data.tasks || data.tasks.length === 0) {
+            list.innerHTML = '<p class="empty-msg">No tasks assigned to you.</p>';
+            return;
+          }
+          list.innerHTML = data.tasks.map(t => `
+            <div class="task-item ${t.status === 'done' ? 'done' : ''} ${isOverdue(t) ? 'overdue' : ''}">
+              <div>
+                <strong>${escapeHtml(t.title)}</strong> <span class="badge">${t.project_name}</span>
+                <span class="badge badge-status">${t.status}</span>
+                ${t.due_date ? `<small>Due: ${t.due_date}</small>` : ''}
+              </div>
+              <select class="status-select" data-taskid="${t.id}">
+                <option value="todo" ${t.status==='todo'?'selected':''}>To Do</option>
+                <option value="in-progress" ${t.status==='in-progress'?'selected':''}>In Progress</option>
+                <option value="done" ${t.status==='done'?'selected':''}>Done</option>
+              </select>
+            </div>
+          `).join('');
+          document.querySelectorAll('#myTasksList .status-select').forEach(sel => {
+            sel.addEventListener('change', function() {
+              const taskId = this.dataset.taskid;
+              updateTaskStatus(taskId, this.value);
+            });
+          });
+        });
+    }
+
+    // ──────────────────────────────────────
+    // Load Stats
+    function loadStats() {
+      // We'll get projects count and tasks for completion/overdue
+      Promise.all([
+        fetch('/api/projects', { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
+        fetch('/api/tasks/my', { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json())
+      ]).then(([projectsData, tasksData]) => {
+        const totalProjects = projectsData.projects ? projectsData.projects.length : 0;
+        const tasks = tasksData.tasks || [];
+        const completed = tasks.filter(t => t.status === 'done').length;
+        const overdue = tasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date()).length;
+        document.getElementById('statsCards').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-project-diagram"></i></div>
+            <h3>Projects</h3>
+            <p class="stat-number">${totalProjects}</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <h3>Completed Tasks</h3>
+            <p class="stat-number">${completed}</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
+            <h3>Overdue</h3>
+            <p class="stat-number">${overdue}</p>
+          </div>
+        `;
+      });
+    }
+
+    // ──────────────────────────────────────
+    // Create Project Modal
+    document.getElementById('openCreateProjectBtn').addEventListener('click', () => openModal('createProjectModal'));
+    document.getElementById('createProjectForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const name = document.getElementById('projName').value;
+      const desc = document.getElementById('projDesc').value;
+      fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ name, description: desc })
+      }).then(r => r.json()).then(d => {
+        closeModal('createProjectModal');
+        this.reset();
+        loadProjects();
+        loadStats();
+      });
+    });
+
+    // Create Task Modal
+    document.getElementById('createTaskForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const projectId = document.getElementById('currentProjectId').value;
+      const title = document.getElementById('taskTitle').value;
+      const description = document.getElementById('taskDesc').value;
+      const dueDate = document.getElementById('taskDueDate').value;
+      const assignedTo = document.getElementById('taskAssignee').value || null;
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ projectId, title, description, dueDate, assignedTo })
+      }).then(r => r.json()).then(d => {
+        closeModal('createTaskModal');
+        this.reset();
+        loadProjectTasks(projectId);
+        loadStats();
+      });
+    });
+
+    // Add member (only if admin)
+    function addMember() {
+      const email = document.getElementById('newMemberEmail').value;
+      const role = document.getElementById('newMemberRole').value;
+      fetch(`/api/projects/${currentProjectId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ email, role })
+      }).then(r => r.json()).then(d => {
+        loadProjectDetail(currentProjectId);
+      });
+    }
+
+    // Load members into assignee dropdown
+    function loadMembersForAssign(projectId) {
+      fetch(`/api/projects/${projectId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+          const select = document.getElementById('taskAssignee');
+          select.innerHTML = '<option value="">Assign to (optional)</option>';
+          data.members.forEach(m => {
+            select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+          });
+        });
+    }
+
+    // ──────────────────────────────────────
+    // Modal helpers
+    function openModal(id) {
+      document.getElementById(id).style.display = 'flex';
+    }
+    function closeModal(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+    document.querySelectorAll('.close-modal').forEach(btn => {
+      btn.addEventListener('click', function() {
+        this.closest('.modal-overlay').style.display = 'none';
+      });
+    });
+    window.addEventListener('click', function(e) {
+      if (e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
+    });
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize
+    function initDashboard() {
+      loadProjects();
+      loadStats();
+    }
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.clear();
+      window.location.href = '/login.html';
+    });
+  </script>
+</body>
+</html>

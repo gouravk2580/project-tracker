@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signup - Project Tracker</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <i class="fas fa-user-plus auth-logo"></i>
+        <h2>Create Account</h2>
+        <p>Start managing your projects today</p>
+      </div>
+      <form id="signupForm">
+        <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" id="name" placeholder="Full Name" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" id="email" placeholder="Email address" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="password" placeholder="Password (min 6 chars)" required minlength="6">
+        </div>
+        <button type="submit" class="auth-btn">
+          <span>Sign Up</span>
+          <i class="fas fa-arrow-right"></i>
+        </button>
+      </form>
+      <p id="message"></p>
+      <p class="auth-switch">Already have an account? <a href="/login.html">Log in</a></p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const btn = document.querySelector('.auth-btn');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+      btn.disabled = true;
+
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+
+      const msgEl = document.getElementById('message');
+      if (res.ok) {
+        msgEl.textContent = 'Account created! Redirecting to login...';
+        msgEl.className = 'success-message';
+        setTimeout(() => { window.location.href = '/login.html'; }, 1500);
+      } else {
+        msgEl.textContent = data.error || 'Signup failed';
+        msgEl.className = 'error-message';
+        btn.innerHTML = '<span>Sign Up</span><i class="fas fa-arrow-right"></i>';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
