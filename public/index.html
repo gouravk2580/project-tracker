@@ -3,20 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Project Tracker</title>
+  <title>ProTrack - Project Management</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .landing-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+    }
+    .landing-logo {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    .landing-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .landing-btn {
+      padding: 0.8rem 2rem;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .landing-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+  </style>
 </head>
 <body>
-  <h1>🚀 Project Tracker is running!</h1>
-  <p>If you see this page, the server works.</p>
-  <button id="testApi">Test API</button>
-  <p id="apiResult"></p>
-  <script>
-    document.getElementById('testApi').addEventListener('click', async () => {
-      const res = await fetch('/api/test');
-      const data = await res.json();
-      document.getElementById('apiResult').textContent = data.message;
-    });
-  </script>
+  <div class="landing-container">
+    <i class="fas fa-project-diagram landing-logo"></i>
+    <h1>ProTrack</h1>
+    <p>Manage your projects and tasks with your team.</p>
+    <div class="landing-buttons">
+      <a href="/signup.html" class="landing-btn">Sign Up</a>
+      <a href="/login.html" class="landing-btn">Login</a>
+    </div>
+  </div>
 </body>
 </html>
